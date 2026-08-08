@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cancheros 2D: Edición Suprema</title>
+    <style>
+        * {
+            user-select: none; -webkit-user-select: none;
+            touch-action: manipulation; box-sizing: border-box;
+        }
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            overflow: hidden; background-color: #111; color: #fff;
+            font-family: 'Arial Black', sans-serif; text-align: center;
+            display: flex; flex-direction: column;
+        }
+        #stats-bar {
+            background: #000; color: #00ffcc; font-size: 10px;
+            padding: 4px; flex-shrink: 0; z-index: 2;
+        }
+        #ui {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #222; padding: 5px 10px; border-bottom: 2px solid #444;
+            font-size: 11px; flex-shrink: 0;
+        }
+        .score { font-size: 14px; color: #ffcc00; }
+        #timer { font-size: 14px; color: #ff3366; font-weight: bold; }
+        
+        #canvas-container {
+            flex: 1; width: 100%; position: relative; background: #1a1a1a;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        #mobile-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; height: 110px; background: #181818;
+            flex-shrink: 0; border-top: 2px solid #333;
+        }
+        #joystick-zone {
+            width: 85px; height: 85px; background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #555; border-radius: 50%; position: relative;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #joystick-stick {
+            width: 38px; height: 38px; background: #ffcc00;
+            border: 2px solid #fff; border-radius: 50%; position: absolute;
+        }
+        .btn-nitro {
+            background: linear-gradient(145deg, #ff4500, #dc3545);
+            color: white; border: 2px solid #fff;
+            width: 65px; height: 65px; border-radius: 50%; font-size: 11px;
+            font-weight: bold; display: flex; justify-content: center;
+            align-items: center; box-shadow: 0 0 10px #ff4500;
+        }
+
+        .overlay-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.92); display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; padding: 15px;
+        }
+
+        #garage-screen { display: flex; }
+        #car-preview-box {
+            width: 140px; height: 90px; background: #222;
+            border: 2px solid #00ffcc; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            position: relative; margin: 5px 0; box-shadow: 0 0 15px rgba(0,255,204,0.3);
+        }
+        #preview-canvas { width: 100%; height: 100%; }
+        #lock-icon {
+            position: absolute; font-size: 40px; display: none;
+            filter: drop-shadow(0 0 8px #ff0000);
+        }
+        .selector-row {
+            display: flex; align-items: center; gap: 15px; margin-bottom: 5px;
+        }
+        .arrow-btn {
+            background: #ffcc00; border: 2px solid #fff; color: #000;
+            font-size: 20px; font-weight: bold; width: 40px; height: 40px;
+            border-radius: 8px; display: flex; justify-content: center; align-items: center;
+        }
+        .color-picker {
+            display: flex; gap: 8px; margin: 8px 0;
+        }
+        .color-dot {
+            width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff;
+        }
+        #play-btn {
+            background: #28a745; color: white; border: 2px solid #fff;
+            padding: 10px 30px; font-size: 18px; font-family: 'Arial Black';
+            border-radius: 10px; box-shadow: 0 4px #155724; margin-top: 5px;
+        }
+
+        #unlock-popup {
+            display: none; background: rgba(0,0,0,0.95);
+            border: 3px solid #00ffcc; border-radius: 15px; box-shadow: 0 0 20px #00ffcc;
+        }
+        #end-screen { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="stats-bar">
+        🏆 Ganados: <span id="wins-val">0</span> | ⚽ Goles: <span id="goals-val">0</span> 💾
+    </div>
+
+    <div id="ui">
+        <div id="timer">⏱️ 01:30</div>
+        <div class="score">AZUL <span id="blue-score">0</span> - <span id="red-score">0</span> ROJO</div>
+        <div id="stadium-name" style="color: #4da6ff;">Estadio Azteca</div>
+    </div>
+
+    <div id="canvas-container">
+        <div id="garage-screen" class="overlay-screen">
+            <h2 style="margin: 0; color: #ffcc00; font-size: 20px;">🛠️ GARAJE CANCHERO</h2>
+            
+            <div class="selector-row">
+                <button class="arrow-btn" onclick="changeCar(-1)">◀</button>
+                <div id="car-preview-box">
+                    <canvas id="preview-canvas" width="140" height="90"></canvas>
+                    <div id="lock-icon">🔒</div>
+                </div>
+                <button class="arrow-btn" onclick="changeCar(1)">▶</button>
+            </div>
+
+            <div id="car-name-title" style="font-size: 15px; color: #00ffcc;">Tsuru Tuneado</div>
+            <div id="car-status-info" style="font-size: 11px; color: #aaa;">✅ DESBLOQUEADO</div>
+
+            <!-- SELECTOR DE COLOR -->
+            <div style="font-size: 11px; margin-top: 5px;">🎨 PINTURA:</div>
+            <div class="color-picker">
+                <div class="color-dot" style="background:#0088ff;" onclick="selectColor('#0088ff')"></div>
+                <div class="color-dot" style="background:#ff3333;" onclick="selectColor('#ff3333')"></div>
+                <div class="color-dot" style="background:#00ff66;" onclick="selectColor('#00ff66')"></div>
+                <div class="color-dot" style="background:#ffcc00;" onclick="selectColor('#ffcc00')"></div>
+                <div class="color-dot" style="background:#cc00ff;" onclick="selectColor('#cc00ff')"></div>
+            </div>
+
+            <button id="play-btn" onclick="startMatch()">🎮 ¡JUGAR!</button>
+        </div>
+
+        <div id="unlock-popup" class="overlay-screen">
+            <h2 style="color: #00ffcc; font-size: 22px; margin-bottom: 5px;">🎉 ¡NUEVO COCHE!</h2>
+            <div id="unlock-msg" style="font-size: 14px; margin-bottom: 15px;">¡Auto desbloqueado!</div>
+            <button id="play-btn" style="background: #0088ff;" onclick="closeUnlockPopup()">¡ENTENDIDO! ⚽</button>
+        </div>
+
+        <div id="end-screen" class="overlay-screen">
+            <div id="end-title" style="font-size: 32px; margin-bottom: 10px;">🏆 ¡VICTORIA!</div>
+            <div id="end-sub" style="font-size: 13px; margin-bottom: 15px;">Marcador Final: 0 - 0</div>
+            <button id="play-btn" onclick="openGarage()">🛠️ IR AL GARAJE</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="mobile-controls">
+        <div id="joystick-zone">
+            <div id="joystick-stick"></div>
+        </div>
+        <div class="btn-nitro" id="btn-nitro">🚀<br>NITRO</div>
+    </div>
+
+<script>
+let gameData = JSON.parse(localStorage.getItem('cancheros_data')) || { wins: 0, goals: 0 };
+let playerColor = '#0088ff';
+
+function saveProgress() {
+    localStorage.setItem('cancheros_data', JSON.stringify(gameData));
+    document.getElementById('wins-val').innerText = gameData.wins;
+    document.getElementById('goals-val').innerText = gameData.goals;
+}
+
+const CAR_LIST = [
+    { id: 'TSURU', name: 'Tsuru Tuneado', speed: 4.8, draw: drawTsuru, reqType: 'free', reqVal: 0, reqText: '✅ DESBLOQUEADO' },
+    { id: 'TRICITAXI', name: 'Tricitaxi HD', speed: 3.8, draw: drawTricitaxi, reqType: 'goals', reqVal: 3, reqText: '🔒 Necesitas 3 Goles' },
+    { id: 'VOCHO', name: 'Vocho Clásico', speed: 4.0, draw: drawVocho, reqType: 'wins', reqVal: 2, reqText: '🔒 Necesitas 2 Victorias' },
+    { id: 'FERRARI', name: 'Deportivo', speed: 5.2, draw: drawFerrari, reqType: 'goals', reqVal: 10, reqText: '🔒 Necesitas 10 Goles' },
+    { id: 'F1', name: 'Coche F1', speed: 5.5, draw: drawF1, reqType: 'wins', reqVal: 5, reqText: '🔒 Necesitas 5 Victorias' }
+];
+
+let selectedCarIndex = 0;
+
+function isCarUnlocked(car) {
+    if (car.reqType === 'free') return true;
+    if (car.reqType === 'goals') return gameData.goals >= car.reqVal;
+    if (car.reqType === 'wins') return gameData.wins >= car.reqVal;
+    return false;
+}
+
+// SISTEMA DE PARTÍCULAS (FUEGO DE NITRO Y GOLES)
+let particles = [];
+function createNitroParticles(x, y, angle) {
+    for (let i = 0; i < 3; i++) {
+        particles.push({
+            x: x - Math.cos(angle) * 20,
+            y: y - Math.sin(angle) * 20,
+            vx: -Math.cos(angle) * (Math.random() * 3 + 2) + (Math.random() - 0.5),
+            vy: -Math.sin(angle) * (Math.random() * 3 + 2) + (Math.random() - 0.5),
+            size: Math.random() * 6 + 3,
+            color: Math.random() > 0.5 ? '#ff4500' : '#ffcc00',
+            life: 20
+        });
+    }
+}
+
+function createGoalExplosions(x, y) {
+    for (let i = 0; i < 40; i++) {
+        let pAngle = Math.random() * Math.PI * 2;
+        let spd = Math.random() * 6 + 2;
+        particles.push({
+            x: x, y: y,
+            vx: Math.cos(pAngle) * spd,
+            vy: Math.sin(pAngle) * spd,
+            size: Math.random() * 8 + 4,
+            color: ['#ff0055', '#00ffcc', '#ffcc00', '#ffffff'][Math.floor(Math.random() * 4)],
+            life: 50
+        });
+    }
+}
+
+// DIBUJO DE AUTOS EN DETAIL
+function drawVocho(c, color) {
+    c.fillStyle = color; c.beginPath(); c.roundRect(-17, -11, 34, 22, 10); c.fill(); c.stroke();
+    c.fillStyle = '#aaddff'; c.beginPath(); c.ellipse(2, 0, 6, 8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff700'; c.fillRect(15, -9, 3, 4); c.fillRect(15, 5, 3, 4);
+}
+function drawTsuru(c, color) {
+    c.fillStyle = color; c.fillRect(-20, -10, 40, 20); c.strokeRect(-20, -10, 40, 20);
+    c.fillStyle = '#111'; c.fillRect(-22, -12, 5, 24);
+    c.fillStyle = '#aaddff'; c.fillRect(-5, -8, 12, 16);
+    c.fillStyle = '#ff6600'; c.fillRect(-23, 6, 4, 3);
+}
+function drawTricitaxi(c, color) {
+    c.fillStyle = color; c.fillRect(-8, -12, 22, 24); c.strokeRect(-8, -12, 22, 24); // Capota
+    c.fillStyle = '#222'; c.fillRect(-15, -10, 6, 20); // Asiento pasaje
+    c.fillStyle = '#111'; c.beginPath(); c.arc(14, 0, 5, 0, Math.PI*2); c.fill(); // Rueda delantera
+    c.strokeStyle = '#333'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(14, 0); c.stroke();
+}
+function drawF1(c, color) {
+    c.fillStyle = color; c.beginPath(); c.moveTo(22, 0); c.lineTo(-15, -6); c.lineTo(-20, -8); c.lineTo(-20, 8); c.lineTo(-15, 6); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#111'; c.fillRect(8, -12, 8, 4); c.fillRect(8, 8, 8, 4); c.fillRect(-18, -13, 10, 5); c.fillRect(-18, 8, 10, 5);
+}
+function drawFerrari(c, color) {
+    c.fillStyle = color; c.beginPath(); c.roundRect(-20, -11, 40, 22, [5, 12, 12, 5]); c.fill(); c.stroke();
+    c.fillStyle = '#222'; c.beginPath(); c.arc(2, 0, 7, -Math.PI/2, Math.PI/2); c.fill();
+}
+
+const prevCanvas = document.getElementById('preview-canvas');
+const prevCtx = prevCanvas.getContext('2d');
+
+function updateGarageUI() {
+    let car = CAR_LIST[selectedCarIndex];
+    let unlocked = isCarUnlocked(car);
+
+    document.getElementById('car-name-title').innerText = car.name;
+    let statusBox = document.getElementById('car-status-info');
+    let lockIcon = document.getElementById('lock-icon');
+
+    if (unlocked) {
+        statusBox.innerText = '✅ DESBLOQUEADO'; statusBox.style.color = '#00ffcc';
+        lockIcon.style.display = 'none';
+    } else {
+        statusBox.innerText = car.reqText; statusBox.style.color = '#ff3366';
+        lockIcon.style.display = 'block';
+    }
+
+    prevCtx.clearRect(0, 0, prevCanvas.width, prevCanvas.height);
+    prevCtx.save(); prevCtx.translate(prevCanvas.width / 2, prevCanvas.height / 2);
+    prevCtx.scale(1.8, 1.8); prevCtx.strokeStyle = '#000'; prevCtx.lineWidth = 2;
+    car.draw(prevCtx, playerColor);
+    prevCtx.restore();
+}
+
+function selectColor(color) {
+    playerColor = color;
+    player.color = color;
+    updateGarageUI();
+}
+
+function changeCar(dir) {
+    selectedCarIndex += dir;
+    if (selectedCarIndex < 0) selectedCarIndex = CAR_LIST.length - 1;
+    if (selectedCarIndex >= CAR_LIST.length) selectedCarIndex = 0;
+    updateGarageUI();
+}
+
+function startMatch() {
+    let car = CAR_LIST[selectedCarIndex];
+    if (!isCarUnlocked(car)) {
+        let btn = document.getElementById('play-btn');
+        btn.style.background = '#dc3545';
+        setTimeout(() => btn.style.background = '#28a745', 400);
+        return;
+    }
+
+    document.getElementById('garage-screen').style.display = 'none';
+    player.type = car;
+    player.color = playerColor;
+    resetGame();
+}
+
+function openGarage() {
+    document.getElementById('end-screen').style.display = 'none';
+    document.getElementById('garage-screen').style.display = 'flex';
+    updateGarageUI();
+}
+
+function checkNewUnlocks() {
+    CAR_LIST.forEach(car => {
+        if (!car.notified && isCarUnlocked(car) && car.reqType !== 'free') {
+            car.notified = true;
+            pauseForUnlock(car);
+        }
+    });
+}
+
+let isPaused = false;
+function pauseForUnlock(car) {
+    isPaused = true;
+    document.getElementById('unlock-msg').innerText = `¡Desbloqueaste el auto: ${car.name}! 🚀\nYa puedes elegirlo en tu garaje.`;
+    document.getElementById('unlock-popup').style.display = 'flex';
+}
+
+function closeUnlockPopup() {
+    document.getElementById('unlock-popup').style.display = 'none';
+    isPaused = false;
+}
+
+const container = document.getElementById('canvas-container');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+let timeLeft = 90;
+let gameOver = false;
+let timerInterval = setInterval(() => {
+    if (!gameOver && !isPaused && document.getElementById('garage-screen').style.display === 'none') {
+        timeLeft--;
+        let mins = Math.floor(timeLeft / 60);
+        let secs = timeLeft % 60;
+        document.getElementById('timer').innerText = `⏱️ 0${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+        if (timeLeft <= 0) checkWinner();
+    }
+}, 1000);
+
+function checkWinner() {
+    if (blueScore === redScore) {
+        document.getElementById('timer').innerText = "⚽ ¡GOL GANA!";
+        return;
+    }
+
+    gameOver = true;
+    let endTitle = document.getElementById('end-title');
+    if (blueScore > redScore) {
+        endTitle.innerText = "🏆 ¡VICTORIA!";
+        endTitle.style.color = "#00ffcc";
+        gameData.wins++;
+        saveProgress();
+        checkNewUnlocks();
+    } else {
+        endTitle.innerText = "💥 DERROTA";
+        endTitle.style.color = "#ff3333";
+    }
+
+    document.getElementById('end-sub').innerText = `Marcador Final: AZUL ${blueScore} - ${redScore} ROJO`;
+    document.getElementById('end-screen').style.display = 'flex';
+}
+
+function resetGame() {
+    blueScore = 0; redScore = 0;
+    timeLeft = 90; gameOver = false; isPaused = false;
+    document.getElementById('blue-score').innerText = 0;
+    document.getElementById('red-score').innerText = 0;
+    document.getElementById('end-screen').style.display = 'none';
+    resetPositions();
+}
+
+class Car {
+    constructor(x, y, team, type, isPlayer = false) {
+        this.x = x; this.y = y; this.vx = 0; this.vy = 0;
+        this.angle = team === 'blue' ? 0 : Math.PI;
+        this.team = team; this.type = type;
+        this.color = team === 'blue' ? playerColor : '#ff3333';
+        this.isPlayer = isPlayer; this.radius = 16;
+        this.stuckTimer = 0; this.escapeTimer = 0;
+    }
+
+    update(joy, isNitro, ball) {
+        if (this.isPlayer) {
+            if (joy.active) {
+                let diff = joy.angle - this.angle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                this.angle += diff * 0.15;
+
+                let spd = this.type.speed * (isNitro ? 1.8 : 1.0) * joy.distance;
+                this.vx += Math.cos(this.angle) * (spd * 0.12);
+                this.vy += Math.sin(this.angle) * (spd * 0.12);
+
+                if (isNitro) createNitroParticles(this.x, this.y, this.angle);
+            }
+        } else {
+            if (this.escapeTimer > 0) {
+                this.escapeTimer--;
+                this.vx += Math.cos(this.angle) * 0.3;
+                this.vy += Math.sin(this.angle) * 0.3;
+            } else {
+                let dx = ball.x - this.x; let dy = ball.y - this.y;
+                let targetAngle = Math.atan2(dy, dx);
+                let diff = targetAngle - this.angle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+
+                if (Math.abs(this.vx) < 0.25 && Math.abs(this.vy) < 0.25) this.stuckTimer++;
+                else this.stuckTimer = 0;
+
+                if (this.stuckTimer > 30) {
+                    this.angle += Math.PI; this.escapeTimer = 45; this.stuckTimer = 0;
+                } else {
+                    this.angle += diff * 0.09;
+                    this.vx += Math.cos(this.angle) * 0.22;
+                    this.vy += Math.sin(this.angle) * 0.22;
+                }
+            }
+        }
+
+        this.vx *= 0.93; this.vy *= 0.93;
+        this.x += this.vx; this.y += this.vy;
+
+        let margin = 15;
+        if (this.x - this.radius < margin) { this.x = margin + this.radius; this.vx = Math.abs(this.vx) * 0.8 + 1.5; }
+        if (this.x + this.radius > canvas.width - margin) { this.x = canvas.width - margin - this.radius; this.vx = -Math.abs(this.vx) * 0.8 - 1.5; }
+        if (this.y - this.radius < margin) { this.y = margin + this.radius; this.vy = Math.abs(this.vy) * 0.8 + 1.5; }
+        if (this.y + this.radius > canvas.height - margin) { this.y = canvas.height - margin - this.radius; this.vy = -Math.abs(this.vy) * 0.8 - 1.5; }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        this.type.draw(ctx, this.color);
+        ctx.restore();
+    }
+}
+
+class Ball {
+    constructor(x, y) { this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.radius = 11; }
+
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        this.vx *= 0.985; this.vy *= 0.985;
+
+        let inGoal = this.y > canvas.height/2 - 45 && this.y < canvas.height/2 + 45;
+        let margin = 12;
+
+        if (this.x - this.radius < margin && !inGoal) { this.x = margin + this.radius; this.vx = Math.abs(this.vx) * 0.9 + 2; }
+        if (this.x + this.radius > canvas.width - margin && !inGoal) { this.x = canvas.width - margin - this.radius; this.vx = -Math.abs(this.vx) * 0.9 - 2; }
+        if (this.y - this.radius < margin) { this.y = margin + this.radius; this.vy = Math.abs(this.vy) * 0.9 + 2; }
+        if (this.y + this.radius > canvas.height - margin) { this.y = canvas.height - margin - this.radius; this.vy = -Math.abs(this.vy) * 0.9 - 2; }
+
+        if (this.x < -10) scoreGoal('red');
+        if (this.x > canvas.width + 10) scoreGoal('blue');
+    }
+
+    draw() {
+        ctx.save(); ctx.translate(this.x, this.y);
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+let blueScore = 0, redScore = 0;
+const ball = new Ball(canvas.width / 2, canvas.height / 2);
+const player = new Car(100, canvas.height / 2, 'blue', CAR_LIST[0], true);
+const teammate = new Car(60, canvas.height / 3, 'blue', getRandomCar());
+const rival1 = new Car(canvas.width - 100, canvas.height / 3, 'red', getRandomCar());
+const rival2 = new Car(canvas.width - 100, (canvas.height / 3) * 2, 'red', getRandomCar());
+
+const cars = [player, teammate, rival1, rival2];
+
+function getRandomCar() {
+    return CAR_LIST[Math.floor(Math.random() * CAR_LIST.length)];
+}
+
+function scoreGoal(team) {
+    createGoalExplosions(ball.x, ball.y);
+    if (team === 'blue') { 
+        blueScore++; gameData.goals++; 
+        saveProgress(); checkNewUnlocks();
+    } else { 
+        redScore++; 
+    }
+
+    document.getElementById('blue-score').innerText = blueScore;
+    document.getElementById('red-score').innerText = redScore;
+
+    if (timeLeft <= 0) checkWinner();
+    else resetPositions();
+}
+
+function resetPositions() {
+    ball.x = canvas.width / 2; ball.y = canvas.height / 2; ball.vx = 0; ball.vy = 0;
+    player.x = 100; player.y = canvas.height / 2;
+    rival1.x = canvas.width - 100; rival2.x = canvas.width - 100;
+}
+
+const joyData = { active: false, angle: 0, distance: 0 };
+const joyZone = document.getElementById('joystick-zone');
+const joyStick = document.getElementById('joystick-stick');
+
+function handleTouch(e) {
+    e.preventDefault();
+    let rect = joyZone.getBoundingClientRect();
+    let touch = e.touches ? e.touches[0] : e;
+    let centerX = rect.left + rect.width / 2;
+    let centerY = rect.top + rect.height / 2;
+
+    let dx = touch.clientX - centerX, dy = touch.clientY - centerY;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    let maxRadius = rect.width / 2;
+
+    joyData.active = true;
+    joyData.angle = Math.atan2(dy, dx);
+    joyData.distance = Math.min(dist / maxRadius, 1);
+
+    let moveDist = Math.min(dist, maxRadius);
+    joyStick.style.transform = `translate(${Math.cos(joyData.angle) * moveDist}px, ${Math.sin(joyData.angle) * moveDist}px)`;
+}
+
+function endTouch(e) {
+    joyData.active = false; joyData.distance = 0;
+    joyStick.style.transform = `translate(0px, 0px)`;
+}
+
+joyZone.addEventListener('touchstart', handleTouch);
+joyZone.addEventListener('touchmove', handleTouch);
+joyZone.addEventListener('touchend', endTouch);
+
+let isNitro = false;
+const btnNitro = document.getElementById('btn-nitro');
+btnNitro.addEventListener('touchstart', (e) => { e.preventDefault(); isNitro = true; });
+btnNitro.addEventListener('touchend', (e) => { e.preventDefault(); isNitro = false; });
+
+function resolveCarCollisions() {
+    for (let i = 0; i < cars.length; i++) {
+        for (let j = i + 1; j < cars.length; j++) {
+            let c1 = cars[i], c2 = cars[j];
+            let dx = c2.x - c1.x, dy = c2.y - c1.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            let minDist = c1.radius + c2.radius;
+
+            if (dist < minDist && dist > 0) {
+                let overlap = minDist - dist;
+                let nx = dx / dist, ny = dy / dist;
+                c1.x -= nx * overlap * 0.5; c1.y -= ny * overlap * 0.5;
+                c2.x += nx * overlap * 0.5; c2.y += ny * overlap * 0.5;
+                c1.vx -= nx * 1.5; c1.vy -= ny * 1.5;
+                c2.vx += nx * 1.5; c2.vy += ny * 1.5;
+            }
+        }
+    }
+}
+
+function checkCarBallCollision(car, ball) {
+    let dx = ball.x - car.x, dy = ball.y - car.y;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < car.radius + ball.radius) {
+        let angle = Math.atan2(dy, dx);
+        ball.vx = Math.cos(angle) * 7.5 + car.vx;
+        ball.vy = Math.sin(angle) * 7.5 + car.vy;
+    }
+}
+
+saveProgress();
+updateGarageUI();
+
+function drawPitch() {
+    // Pasto
+    ctx.fillStyle = '#2e8b57'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // LÍNEAS DE LA CANCHA REAL
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+    // Línea Central
+    ctx.beginPath(); ctx.moveTo(canvas.width / 2, 10); ctx.lineTo(canvas.width / 2, canvas.height - 10); ctx.stroke();
+
+    // Círculo Central
+    ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height / 2, 45, 0, Math.PI * 2); ctx.stroke();
+
+    // Área Chica Izquierda
+    ctx.strokeRect(10, canvas.height/2 - 60, 50, 120);
+    // Área Chica Derecha
+    ctx.strokeRect(canvas.width - 60, canvas.height/2 - 60, 50, 120);
+
+    // PORTERÍAS REALES CON RED
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fillRect(0, canvas.height/2 - 45, 10, 90);
+    ctx.fillRect(canvas.width - 10, canvas.height/2 - 45, 10, 90);
+
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
+    ctx.strokeRect(0, canvas.height/2 - 45, 10, 90);
+    ctx.strokeRect(canvas.width - 10, canvas.height/2 - 45, 10, 90);
+}
+
+function loop() {
+    drawPitch();
+
+    if (!gameOver && !isPaused && document.getElementById('garage-screen').style.display === 'none') {
+        ball.update();
+        cars.forEach(c => { c.update(joyData, isNitro, ball); checkCarBallCollision(c, ball); });
+        resolveCarCollisions();
+    }
+
+    // Dibujar Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    cars.forEach(c => c.draw());
+    ball.draw();
+
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
